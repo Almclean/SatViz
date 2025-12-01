@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Stars } from '@react-three/drei';
@@ -34,6 +35,7 @@ const SimulationLoop = ({
 function App() {
   const [satelliteData, setSatelliteData] = useState(() => parseTLEs(SAMPLE_TLES));
   const [selectedSatellite, setSelectedSatellite] = useState<SatelliteObject | null>(null);
+  const [dataVersion, setDataVersion] = useState(0); // Used to force remount of Satellites component
   
   const [simState, setSimState] = useState<SimulationState>({
     date: new Date(),
@@ -53,6 +55,7 @@ function App() {
         const newSatellites = parseTLEs(parsedTles);
         setSatelliteData(newSatellites);
         setSelectedSatellite(null); // Clear selection as IDs might change
+        setDataVersion(v => v + 1); // Increment version to force fresh mount of Satellites
         console.log(`Imported ${newSatellites.length} satellites.`);
       } else {
         alert("No valid TLE data found in input.");
@@ -79,6 +82,7 @@ function App() {
         <group>
           <Earth currentDate={simState.date} />
           <Satellites 
+            key={dataVersion}
             data={satelliteData} 
             currentDate={simState.date} 
             showLinks={simState.showLinks}

@@ -1,3 +1,4 @@
+
 import React, { useRef, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
@@ -158,6 +159,7 @@ const Satellites: React.FC<SatellitesProps> = ({ data, currentDate, showLinks, s
       <instancedMesh 
         ref={meshRef} 
         args={[undefined, undefined, data.length]}
+        frustumCulled={false} // CRITICAL: Prevents culling when bounding sphere is stale/small
         onClick={(e) => {
           e.stopPropagation();
           const instanceId = e.instanceId;
