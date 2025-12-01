@@ -19,6 +19,7 @@ const Satellites: React.FC<SatellitesProps> = ({ data, currentDate, showLinks, s
   const meshRef = useRef<InstancedMesh>(null);
   const linksRef = useRef<LineSegments>(null);
   const tempObject = useMemo(() => new THREE.Object3D(), []);
+  const tempColor = useMemo(() => new THREE.Color(), []);
   
   // Memoize orbit geometries to avoid re-creating them every frame
   const orbitLines = useMemo(() => {
@@ -28,8 +29,11 @@ const Satellites: React.FC<SatellitesProps> = ({ data, currentDate, showLinks, s
   useFrame(() => {
     if (!meshRef.current) return;
 
-    // 1. Update Satellite Positions
+    // 1. Update Satellite Positions and Calculate Altitudes
     const positions: THREE.Vector3[] = [];
+    const altitudes: number[] = [];
+    let minAlt = Infinity;
+    let maxAlt = -Infinity;
     
     data.forEach((sat, i) => {
       const pos = getSatellitePosition(sat.satrec, currentDate);
@@ -37,7 +41,16 @@ const Satellites: React.FC<SatellitesProps> = ({ data, currentDate, showLinks, s
         tempObject.position.set(pos[0], pos[1], pos[2]);
         tempObject.updateMatrix();
         meshRef.current!.setMatrixAt(i, tempObject.matrix);
-        positions.push(new THREE.Vector3(pos[0], pos[1], pos[2]));
+        
+        const vec = new THREE.Vector3(pos[0], pos[1], pos[2]);
+        positions.push(vec);
+        
+        // Altitude = Distance from center - Earth Radius (1.0 in local units)
+        const alt = vec.length() - 1;
+        altitudes.push(alt);
+        
+        if (alt < minAlt) minAlt = alt;
+        if (alt > maxAlt) maxAlt = alt;
       } else {
         // Hide invalid satellites (e.g., decayed)
         tempObject.position.set(0, 0, 0);
@@ -45,12 +58,30 @@ const Satellites: React.FC<SatellitesProps> = ({ data, currentDate, showLinks, s
         tempObject.updateMatrix();
         meshRef.current!.setMatrixAt(i, tempObject.matrix);
         positions.push(new THREE.Vector3(0,0,0));
+        altitudes.push(0);
       }
     });
 
-    meshRef.current.instanceMatrix.needsUpdate = true;
+    // 2. Apply Colors based on Altitude (Red = Low, Green = High)
+    const range = maxAlt - minAlt;
+    // Prevent divide by zero if all satellites are at the exact same altitude
+    const safeRange = range < 0.000001 ? 1 : range;
 
-    // 2. Update Links (Max 4 nearest neighbors per satellite)
+    data.forEach((_, i) => {
+      if (positions[i].lengthSq() === 0) return; // Skip invalid
+
+      const alt = altitudes[i];
+      const normalized = (alt - minAlt) / safeRange; // 0.0 to 1.0
+
+      // HSL: Red is hue 0.0, Green is hue ~0.33
+      tempColor.setHSL(normalized * 0.33, 1.0, 0.5);
+      meshRef.current!.setColorAt(i, tempColor);
+    });
+
+    meshRef.current.instanceMatrix.needsUpdate = true;
+    if (meshRef.current.instanceColor) meshRef.current.instanceColor.needsUpdate = true;
+
+    // 3. Update Links (K-Nearest Neighbors)
     if (showLinks && linksRef.current) {
       const linkPositions: number[] = [];
       const drawnEdges = new Set<string>();
@@ -58,7 +89,7 @@ const Satellites: React.FC<SatellitesProps> = ({ data, currentDate, showLinks, s
       
       for (let i = 0; i < positions.length; i++) {
         const p1 = positions[i];
-        if (p1.lengthSq() === 0) continue; // Skip invalid/hidden sats
+        if (p1.lengthSq() === 0) continue; 
 
         // Find all candidates within range
         const candidates: { idx: number; distSq: number }[] = [];
@@ -68,24 +99,18 @@ const Satellites: React.FC<SatellitesProps> = ({ data, currentDate, showLinks, s
           const p2 = positions[j];
           if (p2.lengthSq() === 0) continue;
 
-          // Use distanceToSquared for performance (avoids sqrt)
           const distSq = p1.distanceToSquared(p2);
-          
           if (distSq <= maxRangeSq) {
             candidates.push({ idx: j, distSq });
           }
         }
 
-        // Sort candidates by distance and take the closest 4
+        // Keep only the 4 nearest neighbors
         candidates.sort((a, b) => a.distSq - b.distSq);
         const nearest = candidates.slice(0, 4);
 
-        // Add links to geometry
         for (const neighbor of nearest) {
           const j = neighbor.idx;
-          
-          // Deduplicate edges so we don't draw A->B and B->A on top of each other
-          // We use a string key "minIdx-maxIdx"
           const key = i < j ? `${i}-${j}` : `${j}-${i}`;
           
           if (!drawnEdges.has(key)) {
@@ -101,7 +126,6 @@ const Satellites: React.FC<SatellitesProps> = ({ data, currentDate, showLinks, s
         'position',
         new THREE.Float32BufferAttribute(linkPositions, 3)
       );
-      // Tell Three.js how many vertices to draw (divide by 3 for xyz)
       linksRef.current.geometry.setDrawRange(0, linkPositions.length / 3);
     }
   });
@@ -123,10 +147,11 @@ const Satellites: React.FC<SatellitesProps> = ({ data, currentDate, showLinks, s
         onPointerOut={() => { document.body.style.cursor = 'default'; }}
       >
         <sphereGeometry args={[0.015, 8, 8]} />
-        <meshStandardMaterial color="#00ff00" emissive="#00ff00" emissiveIntensity={0.8} />
+        {/* White base color allows instanceColor to Tint the mesh correctly */}
+        <meshStandardMaterial color="white" emissive="white" emissiveIntensity={0.2} roughness={0.4} />
       </instancedMesh>
 
-      {/* Orbit Paths */}
+      {/* Orbit Paths (raycast=null prevents them from blocking clicks) */}
       {showOrbits && data.map((sat, i) => (
         <Line
           key={`orbit-${sat.id}`}
@@ -142,7 +167,7 @@ const Satellites: React.FC<SatellitesProps> = ({ data, currentDate, showLinks, s
         />
       ))}
 
-      {/* Optical Links */}
+      {/* Optical Links (raycast=null prevents blocking clicks) */}
       {showLinks && (
         <lineSegments ref={linksRef} raycast={() => null}>
           <bufferGeometry />
