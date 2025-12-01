@@ -21,6 +21,10 @@ const Satellites: React.FC<SatellitesProps> = ({ data, currentDate, showLinks, s
   const tempObject = useMemo(() => new THREE.Object3D(), []);
   const tempColor = useMemo(() => new THREE.Color(), []);
   
+  // Link Colors: Orange (Outgoing) -> Cyan (Incoming)
+  const colorOutgoing = useMemo(() => new THREE.Color('#ff8800'), []);
+  const colorIncoming = useMemo(() => new THREE.Color('#00ffff'), []);
+
   // Memoize orbit geometries to avoid re-creating them every frame
   const orbitLines = useMemo(() => {
     return data.map(sat => sat.orbitPath.map(p => new THREE.Vector3(p[0], p[1], p[2])));
@@ -29,12 +33,11 @@ const Satellites: React.FC<SatellitesProps> = ({ data, currentDate, showLinks, s
   useFrame(() => {
     if (!meshRef.current) return;
 
-    // 1. Update Satellite Positions and Calculate Altitudes
     const positions: THREE.Vector3[] = [];
-    const altitudes: number[] = [];
-    let minAlt = Infinity;
-    let maxAlt = -Infinity;
+    const validAltitudes: number[] = [];
+    const rawAltitudes: number[] = []; // Store 1:1 with data index
     
+    // 1. Calculate positions and gather altitudes
     data.forEach((sat, i) => {
       const pos = getSatellitePosition(sat.satrec, currentDate);
       if (pos) {
@@ -45,46 +48,66 @@ const Satellites: React.FC<SatellitesProps> = ({ data, currentDate, showLinks, s
         const vec = new THREE.Vector3(pos[0], pos[1], pos[2]);
         positions.push(vec);
         
-        // Altitude = Distance from center - Earth Radius (1.0 in local units)
+        // Altitude relative to Earth surface (radius = 1)
         const alt = vec.length() - 1;
-        altitudes.push(alt);
-        
-        if (alt < minAlt) minAlt = alt;
-        if (alt > maxAlt) maxAlt = alt;
+        validAltitudes.push(alt);
+        rawAltitudes.push(alt);
       } else {
-        // Hide invalid satellites (e.g., decayed)
+        // Hide invalid satellites
         tempObject.position.set(0, 0, 0);
         tempObject.scale.set(0, 0, 0);
         tempObject.updateMatrix();
         meshRef.current!.setMatrixAt(i, tempObject.matrix);
         positions.push(new THREE.Vector3(0,0,0));
-        altitudes.push(0);
+        rawAltitudes.push(NaN);
       }
     });
 
-    // 2. Apply Colors based on Altitude (Red = Low, Green = High)
-    const range = maxAlt - minAlt;
-    // Prevent divide by zero if all satellites are at the exact same altitude
-    const safeRange = range < 0.000001 ? 1 : range;
+    // 2. Determine Color Scale using Percentiles
+    // We use tighter percentiles (2nd to 98th) to really stretch the gradient over the main constellation
+    let minAlt = 0;
+    let maxAlt = 1;
+    
+    if (validAltitudes.length > 0) {
+      validAltitudes.sort((a, b) => a - b);
+      // Tighter clamp to make small differences visible
+      const p2 = Math.floor(validAltitudes.length * 0.02);
+      const p98 = Math.floor(validAltitudes.length * 0.98);
+      
+      minAlt = validAltitudes[p2] || validAltitudes[0];
+      maxAlt = validAltitudes[p98] || validAltitudes[validAltitudes.length - 1];
 
+      // If range is extremely small, ensure we have a fallback divisor
+      if (maxAlt - minAlt < 0.000001) {
+          maxAlt = minAlt + 0.000001; 
+      }
+    }
+
+    const range = maxAlt - minAlt;
+
+    // 3. Apply Satellite Colors
     data.forEach((_, i) => {
       if (positions[i].lengthSq() === 0) return; // Skip invalid
 
-      const alt = altitudes[i];
-      const normalized = (alt - minAlt) / safeRange; // 0.0 to 1.0
+      const alt = rawAltitudes[i];
+      if (isNaN(alt)) return;
 
-      // HSL: Red is hue 0.0, Green is hue ~0.33
-      tempColor.setHSL(normalized * 0.33, 1.0, 0.5);
+      // Clamp to [0, 1]
+      let normalized = (alt - minAlt) / range;
+      normalized = Math.max(0, Math.min(1, normalized));
+
+      // Red (0.0) -> Green (0.35)
+      tempColor.setHSL(normalized * 0.35, 1.0, 0.5);
       meshRef.current!.setColorAt(i, tempColor);
     });
 
     meshRef.current.instanceMatrix.needsUpdate = true;
     if (meshRef.current.instanceColor) meshRef.current.instanceColor.needsUpdate = true;
 
-    // 3. Update Links (K-Nearest Neighbors)
+    // 4. Update Links (K-Nearest Neighbors, max 4) with Vertex Colors
     if (showLinks && linksRef.current) {
       const linkPositions: number[] = [];
-      const drawnEdges = new Set<string>();
+      const linkColors: number[] = [];
       const maxRangeSq = MAX_LINK_RANGE_UNITS * MAX_LINK_RANGE_UNITS;
       
       for (let i = 0; i < positions.length; i++) {
@@ -110,21 +133,24 @@ const Satellites: React.FC<SatellitesProps> = ({ data, currentDate, showLinks, s
         const nearest = candidates.slice(0, 4);
 
         for (const neighbor of nearest) {
-          const j = neighbor.idx;
-          const key = i < j ? `${i}-${j}` : `${j}-${i}`;
+          const p2 = positions[neighbor.idx];
           
-          if (!drawnEdges.has(key)) {
-            drawnEdges.add(key);
-            const p2 = positions[j];
-            linkPositions.push(p1.x, p1.y, p1.z);
-            linkPositions.push(p2.x, p2.y, p2.z);
-          }
+          linkPositions.push(p1.x, p1.y, p1.z);
+          linkPositions.push(p2.x, p2.y, p2.z);
+
+          // Vertex Color: Source (Outgoing/Orange) -> Target (Incoming/Cyan)
+          linkColors.push(colorOutgoing.r, colorOutgoing.g, colorOutgoing.b);
+          linkColors.push(colorIncoming.r, colorIncoming.g, colorIncoming.b);
         }
       }
 
       linksRef.current.geometry.setAttribute(
         'position',
         new THREE.Float32BufferAttribute(linkPositions, 3)
+      );
+      linksRef.current.geometry.setAttribute(
+        'color',
+        new THREE.Float32BufferAttribute(linkColors, 3)
       );
       linksRef.current.geometry.setDrawRange(0, linkPositions.length / 3);
     }
@@ -156,7 +182,7 @@ const Satellites: React.FC<SatellitesProps> = ({ data, currentDate, showLinks, s
         <Line
           key={`orbit-${sat.id}`}
           points={orbitLines[i]}
-          color="rgba(255,255,255,0.2)"
+          color="rgba(255,255,255,0.15)"
           lineWidth={1}
           dashed
           dashScale={2}
@@ -171,7 +197,13 @@ const Satellites: React.FC<SatellitesProps> = ({ data, currentDate, showLinks, s
       {showLinks && (
         <lineSegments ref={linksRef} raycast={() => null}>
           <bufferGeometry />
-          <lineBasicMaterial color="cyan" transparent opacity={0.4} blending={THREE.AdditiveBlending} />
+          <lineBasicMaterial 
+            vertexColors={true} 
+            transparent 
+            opacity={0.6} 
+            blending={THREE.AdditiveBlending} 
+            depthWrite={false}
+          />
         </lineSegments>
       )}
     </group>
