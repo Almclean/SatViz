@@ -18,5 +18,4 @@ export interface SimulationState {
   speed: number; // multiplier, e.g., 1x, 100x
   paused: boolean;
   showLinks: boolean;
-  showOrbits: boolean;
 }

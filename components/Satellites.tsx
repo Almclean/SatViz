@@ -11,18 +11,18 @@ interface SatellitesProps {
   data: SatelliteObject[];
   currentDate: Date;
   showLinks: boolean;
-  showOrbits: boolean;
+  selectedSatellite: SatelliteObject | null;
   onSatelliteClick: (sat: SatelliteObject) => void;
 }
 
-const Satellites: React.FC<SatellitesProps> = ({ data, currentDate, showLinks, showOrbits, onSatelliteClick }) => {
+const Satellites: React.FC<SatellitesProps> = ({ data, currentDate, showLinks, selectedSatellite, onSatelliteClick }) => {
   const meshRef = useRef<InstancedMesh>(null);
   const linksRef = useRef<LineSegments>(null);
   const tempObject = useMemo(() => new THREE.Object3D(), []);
   const tempColor = useMemo(() => new THREE.Color(), []);
   
-  // Link Colors: Orange (Outgoing) -> Cyan (Incoming)
-  const colorOutgoing = useMemo(() => new THREE.Color('#ff8800'), []);
+  // Link Colors: Neon Red-Orange (Outgoing) -> Bright Cyan (Incoming)
+  const colorOutgoing = useMemo(() => new THREE.Color('#ff3300'), []);
   const colorIncoming = useMemo(() => new THREE.Color('#00ffff'), []);
 
   // Memoize orbit geometries to avoid re-creating them every frame
@@ -64,20 +64,17 @@ const Satellites: React.FC<SatellitesProps> = ({ data, currentDate, showLinks, s
     });
 
     // 2. Determine Color Scale using Percentiles
-    // We use tighter percentiles (2nd to 98th) to really stretch the gradient over the main constellation
     let minAlt = 0;
     let maxAlt = 1;
     
     if (validAltitudes.length > 0) {
       validAltitudes.sort((a, b) => a - b);
-      // Tighter clamp to make small differences visible
       const p2 = Math.floor(validAltitudes.length * 0.02);
       const p98 = Math.floor(validAltitudes.length * 0.98);
       
       minAlt = validAltitudes[p2] || validAltitudes[0];
       maxAlt = validAltitudes[p98] || validAltitudes[validAltitudes.length - 1];
 
-      // If range is extremely small, ensure we have a fallback divisor
       if (maxAlt - minAlt < 0.000001) {
           maxAlt = minAlt + 0.000001; 
       }
@@ -92,7 +89,6 @@ const Satellites: React.FC<SatellitesProps> = ({ data, currentDate, showLinks, s
       const alt = rawAltitudes[i];
       if (isNaN(alt)) return;
 
-      // Clamp to [0, 1]
       let normalized = (alt - minAlt) / range;
       normalized = Math.max(0, Math.min(1, normalized));
 
@@ -138,7 +134,7 @@ const Satellites: React.FC<SatellitesProps> = ({ data, currentDate, showLinks, s
           linkPositions.push(p1.x, p1.y, p1.z);
           linkPositions.push(p2.x, p2.y, p2.z);
 
-          // Vertex Color: Source (Outgoing/Orange) -> Target (Incoming/Cyan)
+          // Vertex Color: Source (Outgoing/Red-Orange) -> Target (Incoming/Cyan)
           linkColors.push(colorOutgoing.r, colorOutgoing.g, colorOutgoing.b);
           linkColors.push(colorIncoming.r, colorIncoming.g, colorIncoming.b);
         }
@@ -173,25 +169,27 @@ const Satellites: React.FC<SatellitesProps> = ({ data, currentDate, showLinks, s
         onPointerOut={() => { document.body.style.cursor = 'default'; }}
       >
         <sphereGeometry args={[0.015, 8, 8]} />
-        {/* White base color allows instanceColor to Tint the mesh correctly */}
         <meshStandardMaterial color="white" emissive="white" emissiveIntensity={0.2} roughness={0.4} />
       </instancedMesh>
 
-      {/* Orbit Paths (raycast=null prevents them from blocking clicks) */}
-      {showOrbits && data.map((sat, i) => (
-        <Line
-          key={`orbit-${sat.id}`}
-          points={orbitLines[i]}
-          color="rgba(255,255,255,0.15)"
-          lineWidth={1}
-          dashed
-          dashScale={2}
-          gapSize={1}
-          opacity={0.3}
-          transparent
-          raycast={() => null}
-        />
-      ))}
+      {/* Selected Orbit Path - Only show if satellite selected */}
+      {selectedSatellite && (() => {
+         const index = data.findIndex(s => s.id === selectedSatellite.id);
+         if (index !== -1 && orbitLines[index]) {
+             return (
+                 <Line 
+                    key={`orbit-${selectedSatellite.id}`}
+                    points={orbitLines[index]}
+                    color="rgba(150, 200, 255, 0.5)"
+                    lineWidth={1.5}
+                    transparent
+                    opacity={0.6}
+                    raycast={() => null}
+                 />
+             );
+         }
+         return null;
+      })()}
 
       {/* Optical Links (raycast=null prevents blocking clicks) */}
       {showLinks && (
@@ -199,10 +197,11 @@ const Satellites: React.FC<SatellitesProps> = ({ data, currentDate, showLinks, s
           <bufferGeometry />
           <lineBasicMaterial 
             vertexColors={true} 
-            transparent 
-            opacity={0.6} 
+            transparent={false} 
+            opacity={1.0} 
             blending={THREE.AdditiveBlending} 
             depthWrite={false}
+            linewidth={2} 
           />
         </lineSegments>
       )}

@@ -4,7 +4,7 @@ import { OrbitControls, Stars } from '@react-three/drei';
 import * as THREE from 'three';
 
 import { SAMPLE_TLES } from './constants';
-import { parseTLEs } from './utils';
+import { parseTLEs, parseRawTLEString } from './utils';
 import { SimulationState, SatelliteObject } from './types';
 
 import Earth from './components/Earth';
@@ -40,11 +40,27 @@ function App() {
     speed: 1,
     paused: false,
     showLinks: true,
-    showOrbits: true,
   });
 
   const handleTimeUpdate = (newDate: Date) => {
     setSimState(prev => ({ ...prev, date: newDate }));
+  };
+
+  const handleImportTLE = (raw: string) => {
+    try {
+      const parsedTles = parseRawTLEString(raw);
+      if (parsedTles.length > 0) {
+        const newSatellites = parseTLEs(parsedTles);
+        setSatelliteData(newSatellites);
+        setSelectedSatellite(null); // Clear selection as IDs might change
+        console.log(`Imported ${newSatellites.length} satellites.`);
+      } else {
+        alert("No valid TLE data found in input.");
+      }
+    } catch (e) {
+      console.error("Failed to parse TLE", e);
+      alert("Error parsing TLE data.");
+    }
   };
 
   return (
@@ -66,7 +82,7 @@ function App() {
             data={satelliteData} 
             currentDate={simState.date} 
             showLinks={simState.showLinks}
-            showOrbits={simState.showOrbits}
+            selectedSatellite={selectedSatellite}
             onSatelliteClick={setSelectedSatellite}
           />
           <SelectedMarker satellite={selectedSatellite} currentDate={simState.date} />
@@ -97,7 +113,11 @@ function App() {
         onClose={() => setSelectedSatellite(null)} 
       />
 
-      <Controls state={simState} setState={setSimState} />
+      <Controls 
+        state={simState} 
+        setState={setSimState} 
+        onImportTLE={handleImportTLE}
+      />
     </div>
   );
 }
