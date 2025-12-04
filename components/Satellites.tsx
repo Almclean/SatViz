@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { InstancedMesh, LineSegments } from 'three';
 import { SatelliteObject } from '../types';
 import { getSatellitePosition } from '../utils';
-import { MAX_LINK_RANGE_UNITS } from '../constants';
+import { SCALE_FACTOR } from '../constants';
 import { Line } from '@react-three/drei';
 
 interface SatellitesProps {
@@ -14,9 +14,21 @@ interface SatellitesProps {
   showLinks: boolean;
   selectedSatellite: SatelliteObject | null;
   onSatelliteClick: (sat: SatelliteObject) => void;
+  maxLinkRangeKm: number;
+  satelliteSize: number;
+  linkOpacity: number;
 }
 
-const Satellites: React.FC<SatellitesProps> = ({ data, currentDate, showLinks, selectedSatellite, onSatelliteClick }) => {
+const Satellites: React.FC<SatellitesProps> = ({ 
+  data, 
+  currentDate, 
+  showLinks, 
+  selectedSatellite, 
+  onSatelliteClick,
+  maxLinkRangeKm,
+  satelliteSize,
+  linkOpacity
+}) => {
   const meshRef = useRef<InstancedMesh>(null);
   const linksRef = useRef<LineSegments>(null);
   const tempObject = useMemo(() => new THREE.Object3D(), []);
@@ -35,8 +47,6 @@ const Satellites: React.FC<SatellitesProps> = ({ data, currentDate, showLinks, s
     if (!meshRef.current) return;
 
     // FIX: Update bounding sphere to ensure raycasting works for all instances.
-    // By default, InstancedMesh uses the geometry's bounding sphere (radius ~0.015) for culling.
-    // Since instances are spread out, we must increase the bound to avoid the raycaster skipping the mesh.
     if (meshRef.current.geometry) {
         const geom = meshRef.current.geometry;
         if (!geom.boundingSphere) geom.computeBoundingSphere();
@@ -117,7 +127,10 @@ const Satellites: React.FC<SatellitesProps> = ({ data, currentDate, showLinks, s
     if (showLinks && linksRef.current) {
       const linkPositions: number[] = [];
       const linkColors: number[] = [];
-      const maxRangeSq = MAX_LINK_RANGE_UNITS * MAX_LINK_RANGE_UNITS;
+      
+      // Calculate max range in units based on dynamic prop
+      const maxRangeUnits = maxLinkRangeKm * SCALE_FACTOR;
+      const maxRangeSq = maxRangeUnits * maxRangeUnits;
       
       for (let i = 0; i < positions.length; i++) {
         const p1 = positions[i];
@@ -182,7 +195,7 @@ const Satellites: React.FC<SatellitesProps> = ({ data, currentDate, showLinks, s
         onPointerOver={() => { document.body.style.cursor = 'pointer'; }}
         onPointerOut={() => { document.body.style.cursor = 'default'; }}
       >
-        <sphereGeometry args={[0.015, 8, 8]} />
+        <sphereGeometry args={[satelliteSize, 8, 8]} />
         <meshStandardMaterial color="white" emissive="white" emissiveIntensity={0.2} roughness={0.4} />
       </instancedMesh>
 
@@ -211,8 +224,8 @@ const Satellites: React.FC<SatellitesProps> = ({ data, currentDate, showLinks, s
           <bufferGeometry />
           <lineBasicMaterial 
             vertexColors={true} 
-            transparent={false} 
-            opacity={1.0} 
+            transparent={true} 
+            opacity={linkOpacity} 
             blending={THREE.AdditiveBlending} 
             depthWrite={false}
             linewidth={2} 

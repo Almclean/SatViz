@@ -43,6 +43,9 @@ function App() {
     speed: 1,
     paused: false,
     showLinks: true,
+    maxLinkRangeKm: 2500,
+    satelliteSize: 0.015,
+    linkOpacity: 1.0,
   });
 
   const handleTimeUpdate = (newDate: Date) => {
@@ -87,6 +90,9 @@ function App() {
             data={satelliteData} 
             currentDate={simState.date} 
             showLinks={simState.showLinks}
+            maxLinkRangeKm={simState.maxLinkRangeKm}
+            satelliteSize={simState.satelliteSize}
+            linkOpacity={simState.linkOpacity}
             selectedSatellite={selectedSatellite}
             onSatelliteClick={setSelectedSatellite}
           />

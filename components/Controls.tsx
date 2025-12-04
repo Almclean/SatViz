@@ -1,5 +1,6 @@
+
 import React, { useState } from 'react';
-import { Play, Pause, FastForward, Rewind, Eye, EyeOff, RotateCw, Database, Activity } from 'lucide-react';
+import { Play, Pause, FastForward, Rewind, Eye, EyeOff, RotateCw, Database, Activity, Settings, Sliders } from 'lucide-react';
 import { SimulationState } from '../types';
 
 interface ControlsProps {
@@ -9,7 +10,7 @@ interface ControlsProps {
 }
 
 const Controls: React.FC<ControlsProps> = ({ state, setState, onImportTLE }) => {
-  const [activeTab, setActiveTab] = useState<'sim' | 'data'>('sim');
+  const [activeTab, setActiveTab] = useState<'sim' | 'data' | 'settings'>('sim');
   const [tleInput, setTleInput] = useState('');
 
   const togglePause = () => setState(s => ({ ...s, paused: !s.paused }));
@@ -34,7 +35,7 @@ const Controls: React.FC<ControlsProps> = ({ state, setState, onImportTLE }) => 
   };
 
   return (
-    <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-gray-900/90 backdrop-blur-md border border-gray-700 p-1 rounded-2xl flex flex-col text-white shadow-2xl z-50 min-w-[340px] animate-in slide-in-from-bottom-4 duration-300">
+    <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-gray-900/90 backdrop-blur-md border border-gray-700 p-1 rounded-2xl flex flex-col text-white shadow-2xl z-50 min-w-[360px] animate-in slide-in-from-bottom-4 duration-300">
       
       {/* Tab Switcher */}
       <div className="flex bg-gray-950/50 rounded-xl p-1 mb-2">
@@ -45,15 +46,21 @@ const Controls: React.FC<ControlsProps> = ({ state, setState, onImportTLE }) => 
           <Activity size={14} /> Simulation
         </button>
         <button 
+          onClick={() => setActiveTab('settings')}
+           className={`flex-1 flex items-center justify-center gap-2 py-1.5 text-xs font-medium rounded-lg transition ${activeTab === 'settings' ? 'bg-gray-700 text-white shadow' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}
+        >
+          <Settings size={14} /> Settings
+        </button>
+        <button 
           onClick={() => setActiveTab('data')}
           className={`flex-1 flex items-center justify-center gap-2 py-1.5 text-xs font-medium rounded-lg transition ${activeTab === 'data' ? 'bg-blue-900/40 text-blue-200 shadow border border-blue-800/30' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}
         >
-          <Database size={14} /> Data Sources
+          <Database size={14} /> Data
         </button>
       </div>
 
       <div className="px-3 pb-3">
-        {activeTab === 'sim' ? (
+        {activeTab === 'sim' && (
           <div className="flex flex-col gap-3">
             {/* Info Header */}
             <div className="flex justify-between items-center text-xs text-gray-400 font-mono border-b border-gray-700/50 pb-2">
@@ -86,7 +93,64 @@ const Controls: React.FC<ControlsProps> = ({ state, setState, onImportTLE }) => 
               </button>
             </div>
           </div>
-        ) : (
+        )}
+
+        {activeTab === 'settings' && (
+           <div className="flex flex-col gap-4 py-2">
+              {/* OISL Range Slider */}
+              <div className="space-y-1">
+                 <div className="flex justify-between text-xs text-gray-300">
+                    <span className="flex items-center gap-1"><Sliders size={12} /> Max Link Range</span>
+                    <span className="font-mono text-cyan-400">{state.maxLinkRangeKm} km</span>
+                 </div>
+                 <input 
+                   type="range" 
+                   min="1000" 
+                   max="6000" 
+                   step="100"
+                   value={state.maxLinkRangeKm}
+                   onChange={(e) => setState(s => ({ ...s, maxLinkRangeKm: parseInt(e.target.value) }))}
+                   className="w-full h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500 hover:accent-blue-400"
+                 />
+              </div>
+
+               {/* Satellite Scale Slider */}
+               <div className="space-y-1">
+                 <div className="flex justify-between text-xs text-gray-300">
+                    <span className="flex items-center gap-1"><Sliders size={12} /> Satellite Scale</span>
+                    <span className="font-mono text-cyan-400">{(state.satelliteSize * 100).toFixed(1)}%</span>
+                 </div>
+                 <input 
+                   type="range" 
+                   min="0.005" 
+                   max="0.05" 
+                   step="0.001"
+                   value={state.satelliteSize}
+                   onChange={(e) => setState(s => ({ ...s, satelliteSize: parseFloat(e.target.value) }))}
+                   className="w-full h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500 hover:accent-blue-400"
+                 />
+              </div>
+
+               {/* Link Opacity Slider */}
+               <div className="space-y-1">
+                 <div className="flex justify-between text-xs text-gray-300">
+                    <span className="flex items-center gap-1"><Sliders size={12} /> Link Opacity</span>
+                    <span className="font-mono text-cyan-400">{Math.round(state.linkOpacity * 100)}%</span>
+                 </div>
+                 <input 
+                   type="range" 
+                   min="0.1" 
+                   max="1.0" 
+                   step="0.05"
+                   value={state.linkOpacity}
+                   onChange={(e) => setState(s => ({ ...s, linkOpacity: parseFloat(e.target.value) }))}
+                   className="w-full h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500 hover:accent-blue-400"
+                 />
+              </div>
+           </div>
+        )}
+
+        {activeTab === 'data' && (
           <div className="flex flex-col gap-3">
              <div className="text-xs text-gray-400">
                Paste TLE data (3-line or 2-line format) below to update the visualization.

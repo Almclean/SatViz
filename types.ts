@@ -20,6 +20,10 @@ export interface SimulationState {
   speed: number; // multiplier, e.g., 1x, 100x
   paused: boolean;
   showLinks: boolean;
+  // Visual Settings
+  maxLinkRangeKm: number;
+  satelliteSize: number;
+  linkOpacity: number;
 }
 
 // Augment JSX.IntrinsicElements to include React Three Fiber elements
