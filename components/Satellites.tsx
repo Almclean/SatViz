@@ -34,6 +34,18 @@ const Satellites: React.FC<SatellitesProps> = ({ data, currentDate, showLinks, s
   useFrame(() => {
     if (!meshRef.current) return;
 
+    // FIX: Update bounding sphere to ensure raycasting works for all instances.
+    // By default, InstancedMesh uses the geometry's bounding sphere (radius ~0.015) for culling.
+    // Since instances are spread out, we must increase the bound to avoid the raycaster skipping the mesh.
+    if (meshRef.current.geometry) {
+        const geom = meshRef.current.geometry;
+        if (!geom.boundingSphere) geom.computeBoundingSphere();
+        if (geom.boundingSphere && geom.boundingSphere.radius < 5) {
+            geom.boundingSphere.radius = 5;
+            geom.boundingSphere.center.set(0, 0, 0);
+        }
+    }
+
     const positions: THREE.Vector3[] = [];
     const validAltitudes: number[] = [];
     const rawAltitudes: number[] = []; // Store 1:1 with data index

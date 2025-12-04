@@ -1,3 +1,5 @@
+import React from 'react';
+
 export interface TLEData {
   id: number;
   name: string;
@@ -22,6 +24,29 @@ export interface SimulationState {
 
 // Augment JSX.IntrinsicElements to include React Three Fiber elements
 declare global {
+  namespace JSX {
+    interface IntrinsicElements {
+      ambientLight: any;
+      bufferGeometry: any;
+      color: any;
+      directionalLight: any;
+      group: any;
+      instancedMesh: any;
+      lineBasicMaterial: any;
+      lineSegments: any;
+      mesh: any;
+      meshBasicMaterial: any;
+      meshLambertMaterial: any;
+      meshPhongMaterial: any;
+      meshStandardMaterial: any;
+      ringGeometry: any;
+      sphereGeometry: any;
+    }
+  }
+}
+
+// Augment React's JSX namespace for React 18+ support
+declare module 'react' {
   namespace JSX {
     interface IntrinsicElements {
       ambientLight: any;

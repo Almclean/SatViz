@@ -1,3 +1,4 @@
+
 import React, { useRef } from 'react';
 import { useFrame, useLoader } from '@react-three/fiber';
 import { TextureLoader } from 'three';
@@ -32,7 +33,7 @@ const Earth: React.FC<EarthProps> = ({ currentDate }) => {
   return (
     <group ref={earthRef}>
       {/* Base Earth Sphere */}
-      <mesh>
+      <mesh raycast={() => null}>
         <sphereGeometry args={[1, 64, 64]} />
         <meshPhongMaterial 
           map={colorMap} 
@@ -45,7 +46,7 @@ const Earth: React.FC<EarthProps> = ({ currentDate }) => {
       </mesh>
       
       {/* Atmosphere / Clouds */}
-      <mesh scale={[1.005, 1.005, 1.005]}>
+      <mesh scale={[1.005, 1.005, 1.005]} raycast={() => null}>
         <sphereGeometry args={[1, 64, 64]} />
         <meshLambertMaterial 
           map={cloudsMap} 
@@ -57,7 +58,7 @@ const Earth: React.FC<EarthProps> = ({ currentDate }) => {
       </mesh>
 
       {/* Atmospheric Glow */}
-       <mesh scale={[1.02, 1.02, 1.02]}>
+       <mesh scale={[1.02, 1.02, 1.02]} raycast={() => null}>
         <sphereGeometry args={[1, 64, 64]} />
          <meshBasicMaterial 
           color="#4db2ff" 

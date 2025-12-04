@@ -13,6 +13,7 @@ import Satellites from './components/Satellites';
 import Controls from './components/Controls';
 import SatelliteInfo from './components/SatelliteInfo';
 import SelectedMarker from './components/SelectedMarker';
+import FPSCounter from './components/FPSCounter';
 
 // Component to handle simulation loop logic outside of the React render cycle
 const SimulationLoop = ({ 
@@ -116,6 +117,8 @@ function App() {
         currentDate={simState.date} 
         onClose={() => setSelectedSatellite(null)} 
       />
+
+      <FPSCounter />
 
       <Controls 
         state={simState} 
