@@ -19,3 +19,26 @@ export interface SimulationState {
   paused: boolean;
   showLinks: boolean;
 }
+
+// Augment JSX.IntrinsicElements to include React Three Fiber elements
+declare global {
+  namespace JSX {
+    interface IntrinsicElements {
+      ambientLight: any;
+      bufferGeometry: any;
+      color: any;
+      directionalLight: any;
+      group: any;
+      instancedMesh: any;
+      lineBasicMaterial: any;
+      lineSegments: any;
+      mesh: any;
+      meshBasicMaterial: any;
+      meshLambertMaterial: any;
+      meshPhongMaterial: any;
+      meshStandardMaterial: any;
+      ringGeometry: any;
+      sphereGeometry: any;
+    }
+  }
+}
